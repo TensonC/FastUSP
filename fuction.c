@@ -10,7 +10,8 @@
 
 struct _RXTX_STRUCT {
     int* fd;
-    WINDOW* win;
+    WINDOW* win[2];
+    pthread_mutex_t* mutex;
 };
 
 void list_all_devices(devices_l* dl) {
@@ -148,47 +149,60 @@ int config_port(int fd,struct Port* port) {
     return 0;
 }
 
-void *send_thread(void *arg) {
-    char data[1024];
+void* send_thread(void *arg) {
+    char input[1024];
     int fd = *(((struct _RXTX_STRUCT*)arg)->fd);
-    WINDOW* feedback_win = ((struct _RXTX_STRUCT*)arg)->win;
-
+    WINDOW* read_win = ((struct _RXTX_STRUCT*)arg)->win[0];
+    WINDOW* send_win = ((struct _RXTX_STRUCT*)arg)->win[1];
+    pthread_mutex_t* read_mutex = ((struct _RXTX_STRUCT*)arg)->mutex;
 
     for(;;) {
-/*
-        ssize_t len = write(fd,data,strlen(data));
-        if(len < 0) {
-            perror("ERROR:Failed to write");
-         }
-         else {
-            //write to the  window
-         }
-*/
+        wscanw(send_win,"%[^\n]",input);
+        int len = write(fd,input,strlen(input));
+        if (len < 0) {
+           perror("ERROR:Failed to write"); 
+        }
+        else {
+            pthread_mutex_lock(read_mutex);
+            wprintw(read_win,"[SEND] %s",input);
+            wrefresh(read_win);
+            pthread_mutex_unlock(read_mutex);
+        }
     }
 
     return NULL;
 }
 
-void *read_thread(void *arg) {
+void* read_thread(void *arg) {
     char buffer[1024];
     int fd = *(((struct _RXTX_STRUCT*)arg)->fd);
-    WINDOW* show_win = ((struct _RXTX_STRUCT*)arg)->win;
+    WINDOW* show_win = ((struct _RXTX_STRUCT*)arg)->win[0];
+    pthread_mutex_t* read_mutex = ((struct _RXTX_STRUCT*)arg)->mutex;
 
     //TODO:输出空白
     for(;;) {
         memset(buffer, 0, sizeof(buffer));
         int len = read(fd,buffer,sizeof(buffer) - 1);
-        if(len > 0) {
+        if (len > 0) {
             buffer[len] = '\0';
-            //write to window
-            wprintw(show_win,"%s\n",buffer);
+            pthread_mutex_lock(read_mutex);
+            wprintw(show_win,"[RECEIVE] ");
+            for(int i = 0; i < len; i++) {
+                wprintw(show_win,"%02x  ",(unsigned char)buffer[i]);
+            }
+            wprintw(show_win,"\n");
             wrefresh(show_win);
+            pthread_mutex_unlock(read_mutex);
         }
-        else if (len < 0){
+        else if (len == 0) {
+            continue;
+        }
+        else {
             perror("ERROR:Failed to read");
         }
         usleep(100000);
     }
+
     return NULL;
 }
 
@@ -236,18 +250,24 @@ int open_com(struct Port* port) {
     
     WINDOW* read_win = newwin(scrH - 1,scrW,0,0);
     scrollok(read_win,TRUE);
+    WINDOW* send_win = newwin(1,scrW,scrH,0);
 
-    struct _RXTX_STRUCT read_struct = {
+    pthread_mutex_t read_win_mutex = PTHREAD_MUTEX_INITIALIZER;
+    struct _RXTX_STRUCT _struct = {
         .fd = &fd,
-        .win = read_win
+        .win = {read_win,send_win},
+        .mutex = &read_win_mutex
     };
 
-    pthread_t read_p;
-    pthread_create(&read_p,NULL,read_thread,&read_struct);
+    pthread_t read_p,send_p;
+    pthread_create(&read_p,NULL,read_thread,&_struct);
+    pthread_create(&send_p,NULL,send_thread,&_struct);
 
     pthread_join(read_p,NULL);
+    pthread_join(send_p,NULL);
 
     delwin(read_win);
+    delwin(send_win);
     endwin();
 
     close_port_file(fd);

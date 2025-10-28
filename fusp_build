@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if gcc main.c fuction.c -o fusp -lncurses -lpthread; then
+    echo -e "\e[1;36mfusp build finish\e[0m"
+else
+    echo -e "\e[1;31mfusp build failed\e[0m"
+fi
