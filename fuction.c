@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ctype.h>
 #include <string.h>
 #include <dirent.h>
 #include <termios.h>
@@ -7,6 +8,8 @@
 #include <ncurses.h>
 #include <pthread.h>
 #include "fuction.h"
+
+#define CONFIG_RIGHT_SPACE 20
 
 struct _RXTX_STRUCT {
     int* fd;
@@ -149,6 +152,8 @@ int config_port(int fd,struct Port* port) {
     return 0;
 }
 
+
+
 void* send_thread(void *arg) {
     char input[1024];
     int fd = *(((struct _RXTX_STRUCT*)arg)->fd);
@@ -156,15 +161,18 @@ void* send_thread(void *arg) {
     WINDOW* send_win = ((struct _RXTX_STRUCT*)arg)->win[1];
     pthread_mutex_t* read_mutex = ((struct _RXTX_STRUCT*)arg)->mutex;
 
+    wprintw(send_win,"SEND>>>");
+    wrefresh(send_win);
     for(;;) {
         wscanw(send_win,"%[^\n]",input);
+        wrefresh(send_win);
         int len = write(fd,input,strlen(input));
         if (len < 0) {
            perror("ERROR:Failed to write"); 
         }
         else {
             pthread_mutex_lock(read_mutex);
-            wprintw(read_win,"[SEND] %s",input);
+            wprintw(read_win,"[SEND] %s\n",input);
             wrefresh(read_win);
             pthread_mutex_unlock(read_mutex);
         }
@@ -179,7 +187,6 @@ void* read_thread(void *arg) {
     WINDOW* show_win = ((struct _RXTX_STRUCT*)arg)->win[0];
     pthread_mutex_t* read_mutex = ((struct _RXTX_STRUCT*)arg)->mutex;
 
-    //TODO:输出空白
     for(;;) {
         memset(buffer, 0, sizeof(buffer));
         int len = read(fd,buffer,sizeof(buffer) - 1);
@@ -188,9 +195,20 @@ void* read_thread(void *arg) {
             pthread_mutex_lock(read_mutex);
             wprintw(show_win,"[RECEIVE] ");
             for(int i = 0; i < len; i++) {
-                wprintw(show_win,"%02x  ",(unsigned char)buffer[i]);
+                unsigned char c = buffer[i];
+                if (isprint(c)) {
+                    wprintw(show_win,"%c",c);
+                }
+                else if (c == '\n'){
+                    wprintw(show_win,"\n");
+                }
+                else if (c == '\t') {
+                    wprintw(show_win,"\t");
+                }
+                else {
+                    wprintw(show_win,"<%02X>",c);
+                }
             }
-            wprintw(show_win,"\n");
             wrefresh(show_win);
             pthread_mutex_unlock(read_mutex);
         }
@@ -214,20 +232,20 @@ void show_config(struct Port* port,const char* d,int scrW) {
         case 'E':_parity_i = 2;break;
         default:_parity_i = 0;
     }
-    move(1,scrW - 24);
+    move(1,scrW - CONFIG_RIGHT_SPACE);
     attron(A_BOLD | A_UNDERLINE);
     printw("CONFIG\n");
     attroff(A_BOLD | A_UNDERLINE);
-    move(2,scrW - 24);
+    move(2,scrW - CONFIG_RIGHT_SPACE);
     printw("DEVICE:\t%s\n",d);
-    move(3,scrW - 24);
+    move(3,scrW - CONFIG_RIGHT_SPACE);
     printw("BAUD:\t%d\n",port->baud);
-    move(4,scrW - 24);
-    printw("SIZE:\t%c\n",port->bitsize);
-    move(5,scrW - 24);
+    move(4,scrW - CONFIG_RIGHT_SPACE);
+    printw("SIZE:\t%c bit\n",port->bitsize);
+    move(5,scrW - CONFIG_RIGHT_SPACE);
     printw("PARITY:\t%s\n",_parity[_parity_i]);
-    move(6,scrW - 24);
-    printw("STOP:\t%c\n",port->stop_bit);
+    move(6,scrW - CONFIG_RIGHT_SPACE);
+    printw("STOP:\t%c bit\n",port->stop_bit);
     refresh();
 }
 
@@ -245,10 +263,12 @@ int open_com(struct Port* port) {
     config_port(fd,port);
 
     WINDOW* stdscr = initscr();
+    echo();
+    cbreak();
     getmaxyx(stdscr,scrH,scrW);
     show_config(port,dl[port->usb_id],scrW); 
     
-    WINDOW* read_win = newwin(scrH - 1,scrW,0,0);
+    WINDOW* read_win = newwin(scrH - 1, scrW - CONFIG_RIGHT_SPACE - 4, 0, 0);
     scrollok(read_win,TRUE);
     WINDOW* send_win = newwin(1,scrW,scrH,0);
 
