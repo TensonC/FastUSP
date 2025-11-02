@@ -150,9 +150,71 @@ int config_port(int fd,struct Port* port) {
     tcsetattr(fd,TCSANOW,&options);
 
     return 0;
+} 
+
+void ascii_info(WINDOW* win,unsigned char c) {
+    switch (c) {
+        case '\n': wprintw(win,"\n");break;
+        case '\t': wprintw(win,"\t");break;
+        case '\r':break;
+        default:wprintw(win,"<%02x>",c);
+    }
 }
 
+void ansi_info(WINDOW* win, char* buffer, int len, int* i) {
+    int var[8];
+    int var_i = 0;
+    int x = getcurx(win);
+    int y = getcury(win);
+    memset(var, 1, sizeof(var));
+    for(i; *i < len; *i++) {
+        unsigned char c = buffer[*i];
+        if (isdigit(c)) {
+            var[var_i] = c;
+            var_i++;
+        }
+        else {
+            switch (c) {
+                case 'J':
+                    wclear(win); break;
+                case 'H':
+                    wmove(win, var[0] - 1, var[0] - 1); break;
+                case 'K':
+                    wclrtoeol(win); break;
+                case 'A':
+                    wmove(win, y - var[0], x); break;
+                case 'B':
+                    wmove(win, y + var[0], x); break;
+                case 'C':
+                    wmove(win, y, x - var[0]); break;
+                case 'D':
+                    wmove(win, y, x + var[0]); break;
+                defult:
+                    break;
+            }
+            return;
+        }
+    }
+}
 
+void info_printw (WINDOW* win, char* buffer,int len) {
+    int i;
+    for(i = 0; i < len; i++) {
+        unsigned char c = buffer[i];
+        if (isprint(c)) {
+            wprintw(win,"%c",c);
+        }
+        else if (c == 27 && buffer[i + 1] == '[') {
+            //next is ansi
+            i++;
+            ansi_info(win, buffer, len, &i);
+        }
+        else {
+            ascii_info(win, c);
+        }
+    }
+
+}
 
 void* send_thread(void *arg) {
     char input[1024];
@@ -161,21 +223,26 @@ void* send_thread(void *arg) {
     WINDOW* send_win = ((struct _RXTX_STRUCT*)arg)->win[1];
     pthread_mutex_t* read_mutex = ((struct _RXTX_STRUCT*)arg)->mutex;
 
-    wprintw(send_win,"SEND>>>");
-    wrefresh(send_win);
     for(;;) {
-        wscanw(send_win,"%[^\n]",input);
+        wprintw(send_win,"SEND>>>");
         wrefresh(send_win);
+        wscanw(send_win,"%[^\n]",input);
+        wclear(send_win);
+
+        int l = strlen(input);
+        input[l] = '\n';
+        input[l + 1] = '\0';
+
         int len = write(fd,input,strlen(input));
         if (len < 0) {
            perror("ERROR:Failed to write"); 
         }
-        else {
+        /*else {
             pthread_mutex_lock(read_mutex);
             wprintw(read_win,"[SEND] %s\n",input);
             wrefresh(read_win);
             pthread_mutex_unlock(read_mutex);
-        }
+        }*/
     }
 
     return NULL;
@@ -193,23 +260,10 @@ void* read_thread(void *arg) {
         if (len > 0) {
             buffer[len] = '\0';
             pthread_mutex_lock(read_mutex);
-            wprintw(show_win,"[RECEIVE] ");
-            for(int i = 0; i < len; i++) {
-                unsigned char c = buffer[i];
-                if (isprint(c)) {
-                    wprintw(show_win,"%c",c);
-                }
-                else if (c == '\n'){
-                    wprintw(show_win,"\n");
-                }
-                else if (c == '\t') {
-                    wprintw(show_win,"\t");
-                }
-                else {
-                    wprintw(show_win,"<%02X>",c);
-                }
-            }
+
+            info_printw(show_win,buffer,len);
             wrefresh(show_win);
+
             pthread_mutex_unlock(read_mutex);
         }
         else if (len == 0) {
@@ -263,14 +317,12 @@ int open_com(struct Port* port) {
     config_port(fd,port);
 
     WINDOW* stdscr = initscr();
-    echo();
-    cbreak();
     getmaxyx(stdscr,scrH,scrW);
     show_config(port,dl[port->usb_id],scrW); 
     
     WINDOW* read_win = newwin(scrH - 1, scrW - CONFIG_RIGHT_SPACE - 4, 0, 0);
     scrollok(read_win,TRUE);
-    WINDOW* send_win = newwin(1,scrW,scrH,0);
+    WINDOW* send_win = newwin(1, scrW, scrH - 1, 0);
 
     pthread_mutex_t read_win_mutex = PTHREAD_MUTEX_INITIALIZER;
     struct _RXTX_STRUCT _struct = {
