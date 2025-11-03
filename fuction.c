@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <dirent.h>
+#include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -152,50 +153,67 @@ int config_port(int fd,struct Port* port) {
     return 0;
 } 
 
+
 void ascii_info(WINDOW* win,unsigned char c) {
     switch (c) {
         case '\n': wprintw(win,"\n");break;
         case '\t': wprintw(win,"\t");break;
         case '\r':break;
-        default:wprintw(win,"<%02x>",c);
+        default:wprintw(win,"<%02x>",c);break;
     }
 }
 
-void ansi_info(WINDOW* win, char* buffer, int len, int* i) {
+
+void ansi_info(WINDOW* win, char* bufp, int len) {
     int var[8];
     int var_i = 0;
+
+    int i = 0;
+
     int x = getcurx(win);
     int y = getcury(win);
-    memset(var, 1, sizeof(var));
-    for(i; *i < len; *i++) {
-        unsigned char c = buffer[*i];
-        if (isdigit(c)) {
-            var[var_i] = c;
+
+    int total = 0;
+    //init var array
+    for(int j = 0; j < 8; j++) {
+        var[j] = 1;
+    }
+
+    while(i < len) {
+        i++;
+
+        unsigned char c = *bufp;
+        bufp++;
+
+        if (isdigit(c) && var_i < 8) {
+            if (total == 1) continue;
+            total = 1;
+            var[var_i] = atoi(bufp);
             var_i++;
         }
         else {
+            total = 0;
             switch (c) {
-                case 'J':
-                    wclear(win); break;
+                case 'J': 
+                    wclear(win); return;
                 case 'H':
-                    wmove(win, var[0] - 1, var[0] - 1); break;
+                    wmove(win, var[0] - 1, var[1] - 1); return;
                 case 'K':
-                    wclrtoeol(win); break;
+                    wclrtoeol(win); return;
                 case 'A':
-                    wmove(win, y - var[0], x); break;
+                    wmove(win, y - var[0], x); return;
                 case 'B':
-                    wmove(win, y + var[0], x); break;
+                    wmove(win, y + var[0], x); return;
                 case 'C':
-                    wmove(win, y, x - var[0]); break;
+                    wmove(win, y, x + var[0]); return;
                 case 'D':
-                    wmove(win, y, x + var[0]); break;
-                defult:
-                    break;
+                    wmove(win, y, x - var[0]); return;
+                default: break;
             }
-            return;
         }
     }
 }
+
 
 void info_printw (WINDOW* win, char* buffer,int len) {
     int i;
@@ -205,16 +223,16 @@ void info_printw (WINDOW* win, char* buffer,int len) {
             wprintw(win,"%c",c);
         }
         else if (c == 27 && buffer[i + 1] == '[') {
-            //next is ansi
-            i++;
-            ansi_info(win, buffer, len, &i);
+            //ansi
+            i++;i++;
+            ansi_info(win, buffer + i, len);
         }
         else {
             ascii_info(win, c);
         }
     }
-
 }
+
 
 void* send_thread(void *arg) {
     char input[1024];
@@ -230,19 +248,14 @@ void* send_thread(void *arg) {
         wclear(send_win);
 
         int l = strlen(input);
+
         input[l] = '\n';
         input[l + 1] = '\0';
 
         int len = write(fd,input,strlen(input));
         if (len < 0) {
-           perror("ERROR:Failed to write"); 
+            perror("ERROR:Failed to write"); 
         }
-        /*else {
-            pthread_mutex_lock(read_mutex);
-            wprintw(read_win,"[SEND] %s\n",input);
-            wrefresh(read_win);
-            pthread_mutex_unlock(read_mutex);
-        }*/
     }
 
     return NULL;
