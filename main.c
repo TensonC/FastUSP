@@ -12,21 +12,21 @@ void noCMDHelp(const char* c) {
 }
 
 void Help() {
-    printf("A command-line for connect between USB and Serial Port\n\n\
-\033[1;4mUsage:\033[0m \033[1mfastcom\033[0m [COMMAND] [OPTIONS]\n\
-\n\
-\033[1;4mCommands:\033[0m\n\
-\033[1m list\033[0m\tList all USB devices has connected\n\
-\033[1m open <id>\033[0m\tOpen the port port of USB<id>\n\
-\033[1m help\033[0m\tPrint help\n\
-\033[1m version\033[0m\tPrint version\n\
-\n\
-\033[1;4mOptions:\033[0m\n\
-\033[1m -v,--version\033[0m\tPrint version\n\
-\033[1m -h,--help\033[0m\tPrint help\n\
-\033[1m -n <new_name>\033[0m\tName the opened terminal\n\
-\033[1m -b <baud_rate>\033[0m\tSet the baud rate\n\
-\033[1m -c <port_config>\033[0m\tSet the port config\n");
+    printf("A command-line for connect between USB and Serial Port\n\n" \
+        "\033[1;4mUsage:\033[0m \033[1mfastcom\033[0m [COMMAND] [OPTIONS]\n"    \
+        "\n"                                                                    \
+        "\033[1;4mCommands:\033[0m\n"                                           \
+        "\033[1m list\033[0m\tList all USB devices has connected\n"             \
+        "\033[1m open <id>\033[0m\tOpen the port port of USB<id>\n"             \
+        "\033[1m help\033[0m\tPrint help\n"                                     \
+        "\033[1m version\033[0m\tPrint version\n"                               \
+        "\n"                                                                    \
+        "\033[1;4mOptions:\033[0m\n"                                            \
+        "\033[1m -v,--version\033[0m\tPrint version\n"                          \
+        "\033[1m -h,--help\033[0m\tPrint help\n"                                \
+        "\033[1m -n <new_name>\033[0m\tName the opened terminal\n"              \
+        "\033[1m -b <baud_rate>\033[0m\tSet the baud rate\n"                    \
+        "\033[1m -c <port_config>\033[0m\tSet the port config\n");
 }
 
 int set_option(char* argv[],int* i,struct Port* port) {
@@ -46,8 +46,9 @@ int set_option(char* argv[],int* i,struct Port* port) {
         //named the terminal
         (*i)++;
         if(argv[index + 1] == NULL) {
-            printf("A value is required for '\033[31m-n <new name>\033[0m',\
-but none was supplied\n[e.g fastcom open 0 -n terminal1]\n\nFor more information,try '\033[1m-h\033[0m'\n");
+            printf("A value is required for '\033[31m-n <new name>\033[0m',"\
+                    "but none was supplied\n[e.g fastcom open 0 -n terminal1]\n\n"  \
+                    "For more information,try '\033[1m-h\033[0m'\n");
         return 0;
         }
         strcpy(port->terminal_name,argv[index+1]);
@@ -57,8 +58,9 @@ but none was supplied\n[e.g fastcom open 0 -n terminal1]\n\nFor more information
         //set the baud rate
         (*i)++;
         if(argv[index + 1] == NULL) {
-                printf("A value is required for '\033[31m-b <baud rate>\033[0m',\
-but none was supplied\n[e.g fastcom open 0 -b 9600]\n\nFor more information,try '\033[1m-h\033[0m'\n");
+                printf("A value is required for '\033[31m-b <baud rate>\033[0m'," \
+                        "but none was supplied\n[e.g fastcom open 0 -b 9600]\n\n"\
+                        "For more information,try '\033[1m-h\033[0m'\n");
             return 0;
         }
         port->baud = atoi(argv[index+1]);
@@ -68,8 +70,9 @@ but none was supplied\n[e.g fastcom open 0 -b 9600]\n\nFor more information,try 
         //set port config
         (*i)++;
          if(argv[index + 1] == NULL || strlen(argv[index + 1]) != 3) {
-                printf("A value is required for '\033[31m-c <port_config>\033[0m',\
-but none was supplied\n[e.g fastcom open 0 -c N81]\n\nFor more information,try '\033[1m-h\033[0m'\n");
+                printf("A value is required for '\033[31m-c <port_config>\033[0m'," \
+                        "but none was supplied\n[e.g fastcom open 0 -c N81]\n\n" \
+                        "For more information,try '\033[1m-h\033[0m'\n");
             return 0;
         }
 
@@ -127,8 +130,9 @@ int main(int argc, char* argv[]) {
                 //open terminal
                 i++;
                 if(argv[i] == NULL) {
-                    printf("A value is required for '\033[31mopen <id>\033[0m',\
-but none was supplied\n[e.g fastcom open 0]\n\nFor more information,try '\033[1m-h\033[0m'\n");
+                    printf("A value is required for '\033[31mopen <id>\033[0m'," \
+                            "but none was supplied\n[e.g fastcom open 0]\n\n" \
+                            "For more information,try '\033[1m-h\033[0m'\n");
                     break;
                 }
                 port.usb_id = atoi(argv[i]);
